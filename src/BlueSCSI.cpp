@@ -39,7 +39,7 @@
 #include <SdFat.h>
 #include <setjmp.h>
 
-#define DEBUG            0      // 0:No debug information output
+#define DEBUG            2      // 0:No debug information output
                                 // 1: Debug information output to USB Serial
                                 // 2: Debug information output to LOG.txt (slow)
 
@@ -70,7 +70,7 @@ byte          m_buf[MAX_BLOCKSIZE];      // General purpose buffer
 byte          m_scsi_buf[SCSI_BUF_SIZE]; // Buffer for SCSI READ/WRITE Buffer
 
 SCSI_DEVICE scsi_device_list[NUM_SCSIID][NUM_SCSILUN]; // Maximum number
-SCSI_INQUIRY_DATA default_hdd, default_optical;
+SCSI_INQUIRY_DATA default_hdd, default_optical, default_tape;
 
 // Enables SCSI IDs to be representing as LUNs on SCSI ID 0 
 // This supports a specific case for the Atari MegaSTE internal SCSI adapter
@@ -318,6 +318,8 @@ bool hddimageOpen(SCSI_DEVICE *dev, FsFile *file,int id,int lun,int blocksize)
         goto failed;
       }
     }
+  } else if(dev->m_type == SCSI_DEVICE_TAPE) {
+    LOG_FILE.print(" Tape");
   } else {
     LOG_FILE.print(" HDD");
   }
@@ -433,6 +435,17 @@ void setup()
   memcpy(&default_optical.revision, "1.9a", 4);
   default_optical.release = 0x20;
   memcpy(&default_optical.revision_date, "1995", 4);
+
+    // default SCSI Tape
+  memset(&default_tape, 0, sizeof(default_tape));
+  default_tape.peripheral_device_type = 1;
+  default_tape.rmb = 1;
+  default_tape.ansi_version = 1;
+  default_tape.additional_length = 35;
+  default_tape.density_code = 0x10; // QIC-150
+  memcpy(&default_tape.vendor, "WANGTEK ", 8);
+  memcpy(&default_tape.product, "5150ES SCSI ES41", 16);
+  memcpy(&default_tape.revision, "B170", 4);
   
   // Serial initialization
 #if DEBUG > 0
@@ -624,6 +637,10 @@ void findDriveImages(FsFile root) {
       device_type = SCSI_DEVICE_OPTICAL;
       file = SD.open(name, O_RDONLY);
       break;
+    case 't': 
+      device_type = SCSI_DEVICE_TAPE;
+      file = SD.open(name, O_RDWR);
+      break;
     default:
       file.close();
       continue;
@@ -697,6 +714,11 @@ void findDriveImages(FsFile root) {
               case SCSI_DEVICE_OPTICAL:
               // default SCSI CDROM
               dev->inquiry_block = default_optical;
+              break;
+
+              case SCSI_DEVICE_TAPE:
+              // default SCSI Tape
+              dev->inquiry_block = default_tape;
               break;
           }
 
@@ -1656,6 +1678,7 @@ byte onModeSense(SCSI_DEVICE *dev, const byte *cdb)
 
   // HDD supports page codes 0x1 (Read/Write), 0x2, 0x3, 0x4
   // CDROM supports page codes 0x1 (Read Only), 0x2, 0xD, 0xE, 0x30
+  // Tape supports page codes 0x1 (Read/Write), 0x2, 0x10, 0x11
   if(dev->m_type == SCSI_DEVICE_HDD) {
     switch(pageCode) {
     case SCSI_SENSE_MODE_ALL:
@@ -1744,6 +1767,46 @@ byte onModeSense(SCSI_DEVICE *dev, const byte *cdb)
       if(pageCode != SCSI_SENSE_MODE_ALL) break;
     }
     break; // Don't want SCSI_SENSE_MODE_ALL falling through to error condition
+    default:
+      dev->m_senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+      dev->m_additional_sense_code = SCSI_ASC_INVALID_FIELD_IN_CDB;
+      return SCSI_STATUS_CHECK_CONDITION;
+      break;
+    }
+  } else if(dev->m_type == SCSI_DEVICE_TAPE){
+    if(cdb[0] == SCSI_MODE_SENSE6) {
+      m_buf[2] = 1 << 7; // WP bit
+    } else {
+      m_buf[3] = 1 << 7; // WP bit
+    }
+
+    switch(pageCode) {
+    case SCSI_SENSE_MODE_ALL:
+    case SCSI_SENSE_MODE_READ_WRITE_ERROR_RECOVERY:
+      m_buf[a + 0] = SCSI_SENSE_MODE_READ_WRITE_ERROR_RECOVERY;
+      m_buf[a + 1] = 0x06;
+      m_buf[a + 3] = 0x01; // Retry Count
+      a += 0x08;
+      if(pageCode != SCSI_SENSE_MODE_ALL) break;
+
+    case SCSI_SENSE_MODE_DISCONNECT_RECONNECT:
+      m_buf[a + 0] = SCSI_SENSE_MODE_DISCONNECT_RECONNECT;
+      m_buf[a + 1] = 0x0A;
+      a += 0x0C;
+      if(pageCode != SCSI_SENSE_MODE_ALL) break;
+
+    case SCSI_SENSE_MODE_DEVICE_CONFIGURATION:
+      m_buf[a + 0] = SCSI_SENSE_MODE_DEVICE_CONFIGURATION;
+      m_buf[a + 1] = 0x0A;
+      a += 0x0C;
+      if(pageCode != SCSI_SENSE_MODE_ALL) break;
+
+    case SCSI_SENSE_MODE_MEDIUM_PARTITION:
+      m_buf[a + 0] = SCSI_SENSE_MODE_MEDIUM_PARTITION;
+      m_buf[a + 1] = 0x0A;
+      a += 0x0C;
+      if(pageCode != SCSI_SENSE_MODE_ALL) break;
+
     default:
       dev->m_senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
       dev->m_additional_sense_code = SCSI_ASC_INVALID_FIELD_IN_CDB;

@@ -45,6 +45,8 @@
 #define SCSI_SENSE_MODE_CACHING                     0x08
 #define SCSI_SENSE_MODE_CDROM                       0x0D
 #define SCSI_SENSE_MODE_CDROM_AUDIO_CONTROL         0x0E
+#define SCSI_SENSE_MODE_DEVICE_CONFIGURATION        0x10
+#define SCSI_SENSE_MODE_MEDIUM_PARTITION            0x11
 #define SCSI_SENSE_MODE_VENDOR_APPLE                0x30
 
 #define SCSI_SENSE_MODE_VENDOR_BLUESCSI             0x31 // Lookup range for vndr

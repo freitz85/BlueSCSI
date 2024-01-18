@@ -35,6 +35,7 @@ enum SCSI_DEVICE_TYPE
 {
   SCSI_DEVICE_HDD,
   SCSI_DEVICE_OPTICAL,
+  SCSI_DEVICE_TAPE,
 };
 
 #define SCSI_DEVICE_FLAG_OPTICAL_MODE2   0x1
@@ -304,9 +305,10 @@ typedef struct _SCSI_INQUIRY_DATA
     byte always_zero_byte4:1;
     // byte 4
     byte additional_length;
-    // byte 5-6
+    // byte 5
     byte reserved_byte5;
-    byte reserved_byte6;
+    // byte 6
+    byte density_code;
     // byte 7
     byte sync:1;
     byte always_zero_byte7_more:4;

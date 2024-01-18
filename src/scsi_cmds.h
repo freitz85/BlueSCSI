@@ -90,4 +90,16 @@
 #define SCSI_READ_DRIVE_STATUS      0xE0
 #define SCSI_WRITE_CDP              0xE3
 
+
+
+// SCSI Tape commands
+#define SCSI_REQUEST_BLOCK_ADDRESS  0x2
+#define SCSI_READ_BLOCK_LIMITS      0x5
+#define SCSI_SEEK_BLOCK             0xC
+#define SCSI_PARTITION              0xD
+#define SCSI_WRITE_FILEMARKS        0x10
+#define SCSI_SPACE                  0x11
+#define SCSI_VERIFY6                0x13
+#define SCSI_RECOVER_BUFFER_DATA    0x14
+#define SCSI_ERASE                  0x19
 #endif // __SCSI_CMDS_H__
